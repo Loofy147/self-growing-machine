@@ -7,8 +7,7 @@ whole grid grow into a target creature — and keeps existing as a stable
 'organism' that regenerates if damaged.
 
 This file is engine-only: target generation, perception, the update rule,
-and one training step. Sanity-tested on CPU at small scale here; full run
-goes on Kaggle GPU at larger scale (see nca_kaggle.ipynb).
+and one training step.
 """
 import numpy as np
 import torch
@@ -20,31 +19,37 @@ CHANNELS = 16  # 4 visible (RGBA) + 12 hidden "signal" channels
 
 
 # ---------------------------------------------------------------------------
-# Target: a small original procedural critter (not copied from anywhere —
-# drawn with primitives so the NCA has something concrete to "become").
+# Target: procedural shapes for "Open-ended morphogenesis".
 # ---------------------------------------------------------------------------
-def make_target(size=40, pad=4):
-    """Procedurally draw a small original critter, scaled to `size`."""
-    s = size / 40.0  # all coords below are tuned for a 40px reference canvas
+def make_target(size=40, pad=4, shape="critter"):
+    """Procedurally draw a shape, scaled to `size`."""
+    s = size / 40.0
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    body = (80, 180, 120, 255)
-    bulb = (120, 220, 160, 255)
-    white = (255, 255, 255, 255)
-    dark = (15, 15, 15, 255)
-    line = (20, 80, 50, 255)
 
     def box(coords):
         return [c * s for c in coords]
 
-    d.ellipse(box([8, 16, 32, 36]), fill=body)                 # body
-    d.line(box([20, 16, 20, 7]), fill=body, width=max(1, round(2 * s)))  # antenna stalk
-    d.ellipse(box([16, 2, 24, 9]), fill=bulb)                   # antenna bulb
-    d.ellipse(box([12, 21, 17, 26]), fill=white)                # left eye white
-    d.ellipse(box([23, 21, 28, 26]), fill=white)                # right eye white
-    d.ellipse(box([13.5, 22.5, 15.5, 24.5]), fill=dark)         # left pupil
-    d.ellipse(box([24.5, 22.5, 26.5, 24.5]), fill=dark)         # right pupil
-    d.arc(box([14, 27, 26, 33]), start=20, end=160, fill=line, width=max(1, round(2 * s)))  # smile
+    if shape == "critter":
+        body = (80, 180, 120, 255)
+        bulb = (120, 220, 160, 255)
+        white = (255, 255, 255, 255)
+        dark = (15, 15, 15, 255)
+        line = (20, 80, 50, 255)
+        d.ellipse(box([8, 16, 32, 36]), fill=body)                 # body
+        d.line(box([20, 16, 20, 7]), fill=body, width=max(1, round(2 * s)))  # antenna stalk
+        d.ellipse(box([16, 2, 24, 9]), fill=bulb)                   # antenna bulb
+        d.ellipse(box([12, 21, 17, 26]), fill=white)                # left eye white
+        d.ellipse(box([23, 21, 28, 26]), fill=white)                # right eye white
+        d.ellipse(box([13.5, 22.5, 15.5, 24.5]), fill=dark)         # left pupil
+        d.ellipse(box([24.5, 22.5, 26.5, 24.5]), fill=dark)         # right pupil
+        d.arc(box([14, 27, 26, 33]), start=20, end=160, fill=line, width=max(1, round(2 * s)))  # smile
+    elif shape == "square":
+        d.rectangle(box([10, 10, 30, 30]), fill=(200, 80, 80, 255))
+    elif shape == "circle":
+        d.ellipse(box([10, 10, 30, 30]), fill=(80, 80, 200, 255))
+    elif shape == "triangle":
+        d.polygon(box([20, 10, 10, 30, 30, 30]), fill=(80, 200, 80, 255))
 
     full = size + 2 * pad
     canvas = Image.new("RGBA", (full, full), (0, 0, 0, 0))
@@ -56,8 +61,7 @@ def make_target(size=40, pad=4):
 
 # ---------------------------------------------------------------------------
 # Perception: depthwise conv with 3 fixed filters per channel (identity +
-# sobel_x + sobel_y). Each cell senses itself and its local gradient — this
-# is the only way information moves; there is no global view.
+# sobel_x + sobel_y).
 # ---------------------------------------------------------------------------
 class Perception(nn.Module):
     def __init__(self, channels=CHANNELS):
@@ -75,9 +79,7 @@ class Perception(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# Update rule: the actual "small neural network". Same weights applied to
-# every cell, every step. Last layer zero-init so training starts as a
-# no-op (stability trick from the original Growing NCA recipe).
+# Update rule: the actual "small neural network".
 # ---------------------------------------------------------------------------
 class UpdateRule(nn.Module):
     def __init__(self, channels=CHANNELS, hidden=128):
@@ -89,26 +91,43 @@ class UpdateRule(nn.Module):
         nn.init.zeros_(self.fc2.weight)
         nn.init.zeros_(self.fc2.bias)
 
-    def forward(self, x, update_rate=0.5):
+    def forward(self, x, update_rate=0.5, noise_std=0.0):
         y = self.perceive(x)
         y = F.relu(self.fc1(y))
         dx = self.fc2(y)
+
+        # Robustness: inject state noise
+        if noise_std > 0:
+            dx = dx + torch.randn_like(dx) * noise_std
+
         mask = (torch.rand(x.shape[0], 1, x.shape[2], x.shape[3], device=x.device)
                  <= update_rate).float()
         x = x + dx * mask
-        alive_before = F.max_pool2d(x[:, 3:4], 3, stride=1, padding=1) > 0.1
-        x = x * alive_before.float()
+
+        # Alive mask: cells only stay alive if they have a neighbor with alpha > 0.1
+        alive = F.max_pool2d(x[:, 3:4], 3, stride=1, padding=1) > 0.1
+        x = x * alive.float()
         return x
 
-    def step_n(self, x, n, update_rate=0.5):
+    def step_n(self, x, n, update_rate=0.5, noise_std=0.0):
         for _ in range(n):
-            x = self.forward(x, update_rate)
+            x = self.forward(x, update_rate, noise_std)
         return x
 
 
-def make_seed(size, n=1, channels=CHANNELS, device="cpu"):
+def make_seed(size, n=1, channels=CHANNELS, device="cpu", dna=None):
+    """
+    Create a seed. dna can be a tensor of shape [n, D] where D < channels-4.
+    The DNA is placed in the hidden channels of the center cell.
+    """
     x = torch.zeros(n, channels, size, size, device=device)
-    x[:, 3:, size // 2, size // 2] = 1.0
+    x[:, 3, size // 2, size // 2] = 1.0 # Alpha
+    if dna is not None:
+        # dna shape [n, D]
+        D = dna.shape[1]
+        x[:, 4:4+D, size // 2, size // 2] = dna
+    else:
+        x[:, 4:, size // 2, size // 2] = 1.0 # Default hidden signal
     return x
 
 
@@ -118,31 +137,32 @@ def to_rgb(x):
 
 
 # ---------------------------------------------------------------------------
-# Pool-based training step. A pool of in-progress organisms is kept across
-# steps (not just fresh seeds) — this is what teaches the model to persist
-# and regenerate, not just grow once and stop.
+# Sample Pool
 # ---------------------------------------------------------------------------
 class SamplePool:
-    def __init__(self, seed, size=1024):
+    def __init__(self, seed_func, size=1024):
         self.size = size
-        self.slots = seed.repeat(size, 1, 1, 1).clone()
+        self.seed_func = seed_func
+        # We'll initialize slots lazily or with a default
+        self.slots = None
 
-    def sample(self, n):
+    def sample(self, n, device="cpu"):
+        if self.slots is None:
+            self.slots = self.seed_func(n=self.size).cpu()
+
         idx = np.random.choice(self.size, n, replace=False)
-        return idx, self.slots[idx].clone()
+        return idx, self.slots[idx].clone().to(device)
 
     def commit(self, idx, batch):
-        self.slots[idx] = batch.detach()
+        self.slots[idx] = batch.detach().cpu()
 
 
 def damage_batch(x, n_damaged=0):
-    """Punch random circular holes in `n_damaged` of the batch to force
-    the model to learn regeneration, not just one-shot growth."""
     if n_damaged == 0:
         return x
     x = x.clone()
     B, C, H, W = x.shape
-    yy, xx = torch.meshgrid(torch.arange(H), torch.arange(W), indexing="ij")
+    yy, xx = torch.meshgrid(torch.arange(H, device=x.device), torch.arange(W, device=x.device), indexing="ij")
     for i in range(n_damaged):
         cy, cx = np.random.randint(0, H), np.random.randint(0, W)
         r = np.random.randint(H // 6, H // 3)
@@ -152,18 +172,20 @@ def damage_batch(x, n_damaged=0):
 
 
 def train_step(model, opt, pool, target, steps_range=(48, 64), batch_size=8,
-                n_damaged=3, device="cpu"):
-    idx, x = pool.sample(batch_size)
-    x = x.to(device)
+                n_damaged=3, device="cpu", noise_std=0.0):
+    idx, x = pool.sample(batch_size, device=device)
+
+    # target shape [B, 4, H, W]
     # bias toward keeping the current worst sample as a fresh seed
     losses_pre = ((x[:, :4] - target) ** 2).mean(dim=[1, 2, 3])
     worst = torch.argmax(losses_pre).item()
-    x[worst] = make_seed(x.shape[-1], 1, device=device)[0]
+    x[worst] = pool.seed_func(n=1).to(device)[0]
+
     x = damage_batch(x, n_damaged=min(n_damaged, batch_size - 1))
 
     n_steps = np.random.randint(*steps_range)
     for _ in range(n_steps):
-        x = model(x)
+        x = model(x, noise_std=noise_std)
 
     loss = ((x[:, :4] - target) ** 2).mean()
     opt.zero_grad()
