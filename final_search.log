@@ -1,0 +1,29 @@
+Task 001 SOLVED (kron)
+Task 006 SOLVED (divider)
+Task 016 SOLVED (cmap)
+Processing Task 50...
+Task 053 SOLVED (shift)
+Task 087 SOLVED (flip)
+Processing Task 100...
+Task 140 SOLVED (flip)
+Processing Task 150...
+Task 179 SOLVED (trans)
+Processing Task 200...
+Task 223 SOLVED (scale)
+Processing Task 250...
+Processing Task 300...
+Task 309 SOLVED (cmap)
+Task 326 SOLVED (pat)
+Task 337 SOLVED (cmap)
+Processing Task 350...
+Task 380 SOLVED (rot)
+Task 385 SOLVED (mirror)
+Processing Task 400...
+W0621 18:42:30.775000 800336 site-packages/torch/onnx/_internal/exporter/_compat.py:133] Setting ONNX exporter to use operator set version 18 because the requested opset_version 10 is a lower version than we have implementations for. Automatic version conversion will be performed, which may not be successful at converting to the requested version. If version conversion is unsuccessful, the opset version of the exported model will be kept at 18. Please consider setting opset_version >=18 to leverage latest ONNX features
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+  return cls.__new__(cls, *args)
+The model version conversion is not supported by the onnxscript version converter and fallback is enabled. The model will be converted using the onnx C API (target version: 10).
+W0621 18:49:12.094000 800336 site-packages/torch/onnx/_internal/exporter/_compat.py:133] Setting ONNX exporter to use operator set version 18 because the requested opset_version 10 is a lower version than we have implementations for. Automatic version conversion will be performed, which may not be successful at converting to the requested version. If version conversion is unsuccessful, the opset version of the exported model will be kept at 18. Please consider setting opset_version >=18 to leverage latest ONNX features
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+  return cls.__new__(cls, *args)
+The model version conversion is not supported by the onnxscript version converter and fallback is enabled. The model will be converted using the onnx C API (target version: 10).

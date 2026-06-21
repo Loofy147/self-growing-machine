@@ -1,0 +1,8 @@
+Task 001 SOLVED (kron)
+Traceback (most recent call last):
+  File "/app/search_solvers.py", line 160, in <module>
+    search_range(int(sys.argv[1]), int(sys.argv[2]))
+  File "/app/search_solvers.py", line 102, in search_range
+    if test_model(MultiColorShiftModel(s_dict, H, W), task_data):
+                  ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'MultiColorShiftModel' is not defined
