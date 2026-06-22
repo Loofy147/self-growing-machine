@@ -1,7 +1,0 @@
-Traceback (most recent call last):
-  File "/app/search_solvers.py", line 160, in <module>
-    search_range(int(sys.argv[1]), int(sys.argv[2]))
-  File "/app/search_solvers.py", line 105, in search_range
-    if test_model(MirrorCompletionModel(mode, H, W), task_data):
-                  ^^^^^^^^^^^^^^^^^^^^^
-NameError: name 'MirrorCompletionModel' is not defined

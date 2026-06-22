@@ -38,6 +38,7 @@ def train_and_verify(task_data, task_id, kernel_size=3):
         for x, y in zip(inputs, targets):
             pred = model(x)
             loss += F.mse_loss(pred, y)
+        if epoch % 100 == 0: print(f"Epoch {epoch}, loss {loss.item()}");
         if loss.item() < 1e-7: break
         loss.backward()
         optimizer.step()
@@ -61,7 +62,7 @@ def run_conv_search(task_range):
             with open(f"data/task{i:03d}.json") as f: task_data = json.load(f)
         except: continue
 
-        # print(f"Trying TinyConv for Task {i}...")
+        print(f"Trying TinyConv for Task {i}...")
         for ks in [1, 3, 5]:
             model = train_and_verify(task_data, i, ks)
             if model:
